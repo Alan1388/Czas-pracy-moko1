@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 
 # --- LISTA PRACOWNIKÓW ---
-PRACOWNICY = [
+PRACOWNICY = ["Artur",
     "Alan", "Azamat", "Bartek", "Ivan", "Kamil", "Krzysiek", "Łukasz", 
     "Łukasz Ndg", "Maciek", "Marcel", "Marcin Brygadzista", 
     "Marcin Nowy", "Marcin Sz.", "Marek", "Marek Gru", 
