@@ -5,6 +5,7 @@ import os
 
 # --- LISTA PRACOWNIKÓW (Ułożona alfabetycznie) ---
 PRACOWNICY = [
+    "Alan",
     "Azamat",
     "Bartek",
     "Ivan",
