@@ -2,8 +2,15 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+import smtplib
+from email.message import EmailMessage
 
-# --- KONFIGURACJA ---
+# --- KONFIGURACJA KONTA ---
+MOJ_EMAIL = "Mokoinvestgd@gmail.com"
+# TUTAJ WKLEJ 16-ZNAKOWY KOD Z GOOGLE (ten z żółtego okienka)
+HASLO_GMAIL = "yrzg qqhj ikey jzqc" 
+
+# --- KONFIGURACJA APLIKACJI ---
 PRACOWNICY = [
     "Alan", "Azamat", "Bartek", "Ivan", "Kamil", "Krzysiek", "Łukasz", 
     "Łukasz Ndg", "Maciek", "Marcel", "Marcin Brygadzista", 
@@ -11,26 +18,38 @@ PRACOWNICY = [
     "Marek K.", "Misza", "Piotr S.", "Sasza"
 ]
 
-# TWOJE NOWE HASŁO
-HASLO_SZEFA = "Moko123$"
-
-FOLDER_ZDJEC = "zdjecia_pracownikow"
+HASLO_PANELU = "Moko123$"
 PLIK_LOGU = "rejestr_czasu.csv"
-KOLUMNY = ["Pracownik", "Data", "Wejście (START)", "Wyjście (KONIEC)", "Suma Godzin", "Plik Foto"]
+KOLUMNY = ["Pracownik", "Data", "Wejście (START)", "Wyjście (KONIEC)", "Suma Godzin"]
 
-if not os.path.exists(FOLDER_ZDJEC):
-    os.makedirs(FOLDER_ZDJEC)
+def wyslij_raport_email(osoba, typ, godzina, foto_data):
+    msg = EmailMessage()
+    msg['Subject'] = f"Raport Pracy: {osoba} ({typ})"
+    msg['From'] = MOJ_EMAIL
+    msg['To'] = MOJ_EMAIL
+    
+    tresc = f"""
+    Zarejestrowano nową aktywność w systemie MOKO:
+    Pracownik: {osoba}
+    Akcja: {typ}
+    Godzina (czas telefonu): {godzina}
+    Data: {datetime.now().strftime('%Y-%m-%d')}
+    """
+    msg.set_content(tresc)
+    msg.add_attachment(foto_data, maintype='image', subtype='jpeg', filename=f"{osoba}_{typ}.jpg")
 
-def wczytaj_dane():
-    if os.path.exists(PLIK_LOGU) and os.path.getsize(PLIK_LOGU) > 0:
-        try:
-            return pd.read_csv(PLIK_LOGU)
-        except:
-            return pd.DataFrame(columns=KOLUMNY)
-    return pd.DataFrame(columns=KOLUMNY)
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(MOJ_EMAIL, HASLO_GMAIL)
+            smtp.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Błąd wysyłki maila: {e}")
+        return False
 
-st.set_page_config(page_title="Budowa MOKO", page_icon="🏗️")
-st.title("🏗️ Rejestr Czasu Pracy")
+# --- UI APLIKACJI ---
+st.set_page_config(page_title="MOKO Budowa", page_icon="🏗️")
+st.title("🏗️ Rejestr Czasu MOKO")
 
 osoba = st.selectbox("Wybierz pracownika:", ["-- Wybierz z listy --"] + PRACOWNICY)
 
@@ -39,69 +58,31 @@ if osoba != "-- Wybierz z listy --":
     godzina_teraz = teraz.strftime("%H:%M:%S")
     data_dzis = teraz.strftime("%Y-%m-%d")
     
-    st.info(f"Aktualna godzina: **{godzina_teraz}**")
-    
+    st.info(f"Godzina z Twojego telefonu: **{godzina_teraz}**")
     typ = st.radio("Akcja:", ["START (Początek pracy)", "KONIEC (Koniec pracy)"])
-    foto = st.camera_input("Zrób zdjęcie (potwierdzenie)")
+    foto = st.camera_input("Zrób zdjęcie (Selfie)")
 
     if foto:
-        if st.button("ZATWIERDŹ I WYŚLIJ"):
-            bezp_nazwa = osoba.replace(" ", "_")
-            plik_foto = f"{teraz.strftime('%Y%m%d_%H%M%S')}_{bezp_nazwa}.jpg"
+        if st.button("ZATWIERDŹ I WYŚLIJ DO SZEFA"):
+            # 1. Wysyłka maila ze zdjęciem
+            if wyslij_raport_email(osoba, typ, godzina_teraz, foto.getvalue()):
+                st.success("Zdjęcie i godzina zostały wysłane na maila Mokoinvestgd@gmail.com!")
             
-            with open(os.path.join(FOLDER_ZDJEC, plik_foto), "wb") as f:
-                f.write(foto.getbuffer())
-
-            df = wczytaj_dane()
-            h_suma = 0.0
-            
-            if typ == "START (Początek pracy)":
-                nowy_wpis = pd.DataFrame([[osoba, data_dzis, godzina_teraz, "-", 0.0, plik_foto]], columns=KOLUMNY)
-            else:
-                mask = (df['Pracownik'] == osoba) & (df['Data'] == data_dzis) & (df['Wejście (START)'] != "-")
-                indexy = df[mask].index
-                
-                if not indexy.empty:
-                    idx = indexy[-1]
-                    start_str = df.at[idx, 'Wejście (START)']
-                    start_dt = datetime.strptime(start_str, "%H:%M:%S")
-                    roznica = teraz - datetime.combine(teraz.date(), start_dt.time())
-                    h_suma = round(roznica.total_seconds() / 3600, 2)
-                    
-                    df.at[idx, 'Wyjście (KONIEC)'] = godzina_teraz
-                    df.at[idx, 'Suma Godzin'] = h_suma
-                    nowy_wpis = None
-                else:
-                    nowy_wpis = pd.DataFrame([[osoba, data_dzis, "-", godzina_teraz, 0.0, plik_foto]], columns=KOLUMNY)
-
-            if nowy_wpis is not None:
-                df = pd.concat([df, nowy_wpis], ignore_index=True)
-            
+            # 2. Zapis pomocniczy do tabeli
+            df = pd.read_csv(PLIK_LOGU) if os.path.exists(PLIK_LOGU) else pd.DataFrame(columns=KOLUMNY)
+            nowy = pd.DataFrame([[osoba, data_dzis, godzina_teraz if "START" in typ else "-", godzina_teraz if "KONIEC" in typ else "-", 0.0]], columns=KOLUMNY)
+            df = pd.concat([df, nowy], ignore_index=True)
             df.to_csv(PLIK_LOGU, index=False)
-            st.success(f"Dziękuję {osoba}! Zarejestrowano pomyślnie.")
+            
             st.balloons()
 
-# --- PANEL ROZLICZEŃ Z HASŁEM ---
+# --- PANEL SZEFA (NA HASŁO) ---
 st.markdown("---")
-if st.checkbox("📊 PANEL ROZLICZEŃ (Dla Szefa)"):
-    wpisane_haslo = st.text_input("Podaj hasło dostępu:", type="password")
-    
-    if wpisane_haslo == HASLO_SZEFA:
-        st.success("Dostęp przyznany!")
-        df = wczytaj_dane()
-        if not df.empty:
-            df['Data'] = pd.to_datetime(df['Data'])
-            m, r = datetime.now().month, datetime.now().year
-            
-            df_m = df[(df['Data'].dt.month == m) & (df['Data'].dt.year == r)]
-            
-            st.subheader(f"Podsumowanie miesiąca {m}/{r}")
-            suma_mies = df_m.groupby('Pracownik')['Suma Godzin'].sum().reset_index()
-            st.table(suma_mies)
-            
-            st.subheader("Szczegółowa historia")
-            st.dataframe(df.sort_values(by="Data", ascending=False))
+if st.checkbox("📊 PANEL ROZLICZEŃ (Dla Alana)"):
+    kod = st.text_input("Podaj hasło Moko:", type="password")
+    if kod == HASLO_PANELU:
+        st.success("Witaj Alan! Oto historia wejść:")
+        if os.path.exists(PLIK_LOGU):
+            st.dataframe(pd.read_csv(PLIK_LOGU))
         else:
-            st.info("Brak wpisów w bazie.")
-    elif wpisane_haslo != "":
-        st.error("Błędne hasło!")
+            st.write("Baza danych jest obecnie pusta.")
