@@ -7,7 +7,7 @@ from email.message import EmailMessage
 
 # --- KONFIGURACJA KONTA ---
 MOJ_EMAIL = "Mokoinvestgd@gmail.com"
-# TUTAJ WKLEJ 16-ZNAKOWY KOD Z GOOGLE (ten z żółtego okienka)
+# TUTAJ WKLEJ 16-ZNAKOWY KOD Z GOOGLE (ten z żółtego okienka bez spacji)
 HASLO_GMAIL = "yrzg qqhj ikey jzqc" 
 
 # --- KONFIGURACJA APLIKACJI ---
@@ -66,23 +66,36 @@ if osoba != "-- Wybierz z listy --":
         if st.button("ZATWIERDŹ I WYŚLIJ DO SZEFA"):
             # 1. Wysyłka maila ze zdjęciem
             if wyslij_raport_email(osoba, typ, godzina_teraz, foto.getvalue()):
-                st.success("Zdjęcie i godzina zostały wysłane na maila Mokoinvestgd@gmail.com!")
+                st.success(f"Zdjęcie i godzina zostały wysłane na maila {MOJ_EMAIL}!")
             
-            # 2. Zapis pomocniczy do tabeli
-            df = pd.read_csv(PLIK_LOGU) if os.path.exists(PLIK_LOGU) else pd.DataFrame(columns=KOLUMNY)
+            # 2. Zapis pomocniczy do lokalnej tabeli
+            if not os.path.exists(PLIK_LOGU):
+                df = pd.DataFrame(columns=KOLUMNY)
+            else:
+                df = pd.read_csv(PLIK_LOGU)
+            
             nowy = pd.DataFrame([[osoba, data_dzis, godzina_teraz if "START" in typ else "-", godzina_teraz if "KONIEC" in typ else "-", 0.0]], columns=KOLUMNY)
             df = pd.concat([df, nowy], ignore_index=True)
             df.to_csv(PLIK_LOGU, index=False)
             
             st.balloons()
 
-# --- PANEL SZEFA (NA HASŁO) ---
+# --- PANEL SZEFA (ZABEZPIECZONY HASŁEM) ---
 st.markdown("---")
 if st.checkbox("📊 PANEL ROZLICZEŃ (Dla Alana)"):
     kod = st.text_input("Podaj hasło Moko:", type="password")
     if kod == HASLO_PANELU:
         st.success("Witaj Alan! Oto historia wejść:")
         if os.path.exists(PLIK_LOGU):
-            st.dataframe(pd.read_csv(PLIK_LOGU))
+            df_view = pd.read_csv(PLIK_LOGU)
+            st.dataframe(df_view)
+            
+            # Krótkie podsumowanie miesiąca
+            st.subheader("Suma godzin (Bieżący miesiąc)")
+            df_view['Data'] = pd.to_datetime(df_view['Data'])
+            miesiac = datetime.now().month
+            df_m = df_view[df_view['Data'].dt.month == miesiac]
+            suma = df_m.groupby('Pracownik')['Suma Godzin'].sum().reset_index()
+            st.table(suma)
         else:
             st.write("Baza danych jest obecnie pusta.")
