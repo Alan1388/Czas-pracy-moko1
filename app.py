@@ -3,13 +3,16 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# --- LISTA PRACOWNIKÓW ---
-PRACOWNICY = ["Artur",
+# --- KONFIGURACJA ---
+PRACOWNICY = [
     "Alan", "Azamat", "Bartek", "Ivan", "Kamil", "Krzysiek", "Łukasz", 
     "Łukasz Ndg", "Maciek", "Marcel", "Marcin Brygadzista", 
     "Marcin Nowy", "Marcin Sz.", "Marek", "Marek Gru", 
     "Marek K.", "Misza", "Piotr S.", "Sasza"
 ]
+
+# TWOJE NOWE HASŁO
+HASLO_SZEFA = "Moko123$"
 
 FOLDER_ZDJEC = "zdjecia_pracownikow"
 PLIK_LOGU = "rejestr_czasu.csv"
@@ -27,17 +30,16 @@ def wczytaj_dane():
     return pd.DataFrame(columns=KOLUMNY)
 
 st.set_page_config(page_title="Budowa MOKO", page_icon="🏗️")
-st.title("🏗️ Automatyczny Rejestr Czasu")
+st.title("🏗️ Rejestr Czasu Pracy")
 
 osoba = st.selectbox("Wybierz pracownika:", ["-- Wybierz z listy --"] + PRACOWNICY)
 
 if osoba != "-- Wybierz z listy --":
-    # System sam pobiera aktualną godzinę z urządzenia
     teraz = datetime.now()
     godzina_teraz = teraz.strftime("%H:%M:%S")
     data_dzis = teraz.strftime("%Y-%m-%d")
     
-    st.write(f"Aktualna godzina: **{godzina_teraz}**")
+    st.info(f"Aktualna godzina: **{godzina_teraz}**")
     
     typ = st.radio("Akcja:", ["START (Początek pracy)", "KONIEC (Koniec pracy)"])
     foto = st.camera_input("Zrób zdjęcie (potwierdzenie)")
@@ -56,7 +58,6 @@ if osoba != "-- Wybierz z listy --":
             if typ == "START (Początek pracy)":
                 nowy_wpis = pd.DataFrame([[osoba, data_dzis, godzina_teraz, "-", 0.0, plik_foto]], columns=KOLUMNY)
             else:
-                # Szukamy wejścia z dzisiaj, żeby policzyć czas
                 mask = (df['Pracownik'] == osoba) & (df['Data'] == data_dzis) & (df['Wejście (START)'] != "-")
                 indexy = df[mask].index
                 
@@ -77,25 +78,30 @@ if osoba != "-- Wybierz z listy --":
                 df = pd.concat([df, nowy_wpis], ignore_index=True)
             
             df.to_csv(PLIK_LOGU, index=False)
-            st.success(f"Zarejestrowano pomyślnie o {godzina_teraz}!")
+            st.success(f"Dziękuję {osoba}! Zarejestrowano pomyślnie.")
             st.balloons()
 
-# --- PANEL ROZLICZEŃ ---
+# --- PANEL ROZLICZEŃ Z HASŁEM ---
 st.markdown("---")
 if st.checkbox("📊 PANEL ROZLICZEŃ (Dla Szefa)"):
-    df = wczytaj_dane()
-    if not df.empty:
-        df['Data'] = pd.to_datetime(df['Data'])
-        m, r = datetime.now().month, datetime.now().year
-        
-        # Filtrowanie bieżącego miesiąca
-        df_m = df[(df['Data'].dt.month == m) & (df['Data'].dt.year == r)]
-        
-        st.subheader(f"Podsumowanie miesiąca {m}/{r}")
-        suma_mies = df_m.groupby('Pracownik')['Suma Godzin'].sum().reset_index()
-        st.table(suma_mies)
-        
-        st.subheader("Szczegółowa historia")
-        st.dataframe(df.sort_values(by="Data", ascending=False))
-    else:
-        st.info("Brak wpisów w bazie.")
+    wpisane_haslo = st.text_input("Podaj hasło dostępu:", type="password")
+    
+    if wpisane_haslo == HASLO_SZEFA:
+        st.success("Dostęp przyznany!")
+        df = wczytaj_dane()
+        if not df.empty:
+            df['Data'] = pd.to_datetime(df['Data'])
+            m, r = datetime.now().month, datetime.now().year
+            
+            df_m = df[(df['Data'].dt.month == m) & (df['Data'].dt.year == r)]
+            
+            st.subheader(f"Podsumowanie miesiąca {m}/{r}")
+            suma_mies = df_m.groupby('Pracownik')['Suma Godzin'].sum().reset_index()
+            st.table(suma_mies)
+            
+            st.subheader("Szczegółowa historia")
+            st.dataframe(df.sort_values(by="Data", ascending=False))
+        else:
+            st.info("Brak wpisów w bazie.")
+    elif wpisane_haslo != "":
+        st.error("Błędne hasło!")
