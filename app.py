@@ -8,7 +8,7 @@ from email.message import EmailMessage
 # --- KONFIGURACJA KONTA ---
 MOJ_EMAIL = "Mokoinvestgd@gmail.com"
 # TUTAJ WKLEJ 16-ZNAKOWY KOD Z GOOGLE (ten z żółtego okienka bez spacji)
-HASLO_GMAIL = "yrzg qqhj ikey jzqc" 
+HASLO_GMAIL = "yrzgqqhjikeyjzqc" 
 
 # --- KONFIGURACJA APLIKACJI ---
 PRACOWNICY = [
